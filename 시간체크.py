@@ -1,3 +1,4 @@
+## © 2021 RYU KANG <riukan121@google.com>, CC BY
 import os
 import time
 from threading import Thread,Event
