@@ -2,6 +2,11 @@
 import os
 import time
 from threading import Thread,Event
+from gtts import gTTS
+import win32com.client
+import json
+# 클래스로 정리해볼까
+# 일과 보고 수정하는 기능도
 # 로그 수동 수정도 가능하도록
 # 10분 마다 로그 찍으면서 삑 하도록
 # 실시간 시간흐름 표시는? (터미널 한줄 지우고, 다시 나오게 하고
@@ -25,47 +30,97 @@ from threading import Thread,Event
 # 키설정도 하도록
 # status 를 메인으로?
 # 이름 입력할 수 있도록
-def tic(start):
-   
+# 알람 설정 기능 넣기
+# 엔터로 바꿀까
+# 휴식시간 공부시간 몇분 추가 기능
+# 통계에서 시간을 계속 나타내기(~분째 공부중)
+# 단축키 받기
+# 그래프도 보여주도
+# 입력을 바로 받는거 없나
+# 한시간마다 일과체크 추가하는 것
+# 백그라운드 재생과 단축키
+# 경고창 모드
+# 체크 놓치면 숫자 입력해서 빼는 시간 입력할 수 있도록
+# 코딩 효율화 작업이 필요
+def tic(start,sch,schedule,fuc,tts):
+    
     # 여기에 sleep 넣어서, 애초에 몇초간  들어가지 않게 하는 것도, 초기 딜레이 방지에 좋을 듯
     while not evt.isSet():
          
         lw = time.time()-start
         if lw>3 and 0<=lw%1800 and lw%1800<3:
             
-            print("\r\t      공부한지 %d 분이 지났습니다. : \a" %(lw//60), end="")
-    # 중간에 로그나 통계 볼 때 태그 조정해서 끄던지, 소리만 나게 하던지 하기 
+            print("\a", end="")
+            
+        if sch != fuc():
+            tts.speak(f"{fuc()} 할 시간 입니다.")
+            sch = fuc()
+            
         time.sleep(3)
         
-def toc(start):
-
+def toc(start,sch,schedule,fuc,tts):
+    
     while not evt.isSet():
         lr = time.time()-start
         if lr>3 and 0<=lr%300 and lr%300<3:
             
-            print("\r\t       휴식한지 %d 분이 지났습니다 : \a"%(lr//60), end="")
+            print("\a", end="")
+        if sch != fuc():
+            tts.speak(f"{fuc()} 할 시간 입니다.")
+            sch = fuc()
+            
         time.sleep(3)
+        
+def now_sch_f(): # 스케줄에서 현재 시간에 해당하는 스케쥴 인덱스 return 
+    global schedule, weekday
+    a = schedule["시간"]
+    ti = time.localtime()
     
-if __name__ == '__main__':
-    os.system("mode con cols=61 lines=13")
-    state = True
+    
+    for i,x in enumerate(a):
+        first = x.split(":")
+        
+        if int(first[0]) == ti[3] :
+            if int(first[1])>ti[4]:
+                
+                return schedule[weekday][i-1] if i-1 != -1 else "취침"
+                break
+            else:
+                return schedule[weekday][i]
+                break
+                
+        elif int(first[0]) > ti[3]:
+            return schedule[weekday][i-1] if i-1 != -1 else "취침"
+            break
+        else:
+            return "취침"
+        
+def show_schedule(s = "b"):
+   
+    len_sch_time = len(schedule["시간"])
+    os.system(f"mode con cols=40 lines={49*(len_sch_time>19)+(len_sch_time<=19)*(len_sch_time*2+7)}")
+    sch_str = "\n\n"
+    temp_sch= now_sch_f()
+    for i,x in zip(schedule["시간"],schedule[f"{weekday}"]):
+        sch_str += f"{i} {x}\n\n" if temp_sch != x else f"==> {i} {x}\n\n"
+    print(sch_str)
+    input("\n돌아가려면 아무 키나 입력하십시오.")
+    os.system("mode con cols=58 lines=10") if s != "a" else os.system("mode con cols=61 lines=13")
+        
+def start_screen():
+    global log,srt,w_s,w_all,r_s,r_all,evt,th1,th2,schedule,now_sch,now_schf,tts
+    global state
+    global weekday
+    while True:
 
-    log = []
-    srt = 0
-    w_s = 0
-    w_all = 0
-    r_s = 0
-    r_all = 0
-    while state:
-
-        a = input("="*60+"\n 공부 시간 체크 프로그램 V1.0.0 입니다. \n\n q = 공부 또는 휴식  s = 통계 e = 종료  L = 로그\n\n"+"="*60+"\n © 2021 RYU KANG <riukan121@google.com>, CC BY\n"+"\n\n\n\n 공부를 시작하시겠습니까?  :  ")
+        a = input("="*60+"\n 공부 시간 체크 프로그램 V1.0.0 입니다. \n\n q = 공부 또는 휴식  w = 통계 e = 종료  L = 로그 s = 스케줄\n\n"+"="*60+"\n © 2021 RYU KANG <riukan121@google.com>, CC BY\n"+f"\n         '{now_sch}' 하는 시간 입니다.\n\n 공부를 시작하시겠습니까?  :  ")
         
         if a == "q":
             w_s = time.time()
             srt = time.strftime("%p %I:%M", time.localtime(w_s))
             evt = Event()
             
-            th1 = Thread(target=tic,args=[w_s])
+            th1 = Thread(target=tic,args=[w_s,now_sch,schedule,now_schf,tts])
             th1.daemon = True
             
             th1.start()
@@ -74,7 +129,7 @@ if __name__ == '__main__':
             log.append("#### "+srt+" 일과 시작")
             os.system("mode con cols=58 lines=10")
             
-            print("\n\n\n\n\n"+"-" * 19 + "%s 부터 공부중" % srt + "-" * 19,end = "\n\n\n\n\n")
+            print("\n\n\n\n\n"+"-" * 19 + "%s 부터 공부중" % time.strftime("%p %I:%M", time.localtime(w_s)) + "-" * 19,end = "\n\n\n\n\n") # 이거 정리 해줘야 비효율성 사라질 듯.
             
             break
 
@@ -83,19 +138,24 @@ if __name__ == '__main__':
                 a = input("\n진짜로 끝내시겠습니까? y/n :  ")
                 if a == "y":
                     state = False
-                    break
+                    return
                 elif a == "n":
                     break
         elif a == "L":
             print(" 아직 로그가 없습니다.")
-        elif a == "s":
+        elif a == "w":
             print(" 아직 통계가 없습니다.")
+        elif a == "s":
+            show_schedule("a")
         else:
             print("잘못 입력하셨습니다.")
-######## 휴식
-    while state:
-
+            
+def study_screen():
+        global log,srt,w_s,w_all,r_s,r_all,evt,th1,th2,schedule,now_sch,now_schf,tts
+        global state
+        global weekday
         while state:
+            print("\n\n\n\n\n"+"-" * 19 + "%s 부터 공부중" % time.strftime("%p %I:%M", time.localtime(w_s)) + "-" * 19,end = "\n\n\n\n\n") 
             b = input("\t      휴식하려면 q를 입력하십시오 ")
 
             if b == "q":  ## 큐
@@ -106,7 +166,7 @@ if __name__ == '__main__':
                 evt.set()
                 th1.join()
                 evt = Event()
-                th2 = Thread(target=toc,args=[r_s])
+                th2 = Thread(target=toc,args=[r_s,now_sch,schedule,now_schf,tts])
                 th2.daemon = True
                 th2.start()
                 
@@ -119,14 +179,15 @@ if __name__ == '__main__':
 
                 log.append(" %d 시간 %d분 공부"%((r_s-w_s)//3600, ((r_s-w_s)%3600)//60))
                 log.append("---- %s 휴식 시작"%(time.strftime("%p %I:%M", time.localtime(r_s))))
-        ## 1
-                print("\n\n\n\n\n\n"+"-" * 19 + "%s 부터 휴식중" % time.strftime("%p %I:%M", time.localtime(r_s)) + "-" * 19,end = "\n\n\n\n\n")
+        
+                now_sch = now_sch_f()
+                
                 break
-            elif b == "s":  ## 에스
+            elif b == "w":  ## 에스
                 ne = time.time() - w_s
                 nw = w_all + ne
 
-                print("\n\t      현재 %d시간 %d분째 공부 중입니다. \n\n\n\t           일과 시작: %s \n\n\t           공부 누적 %d시간 %d분 \n\n\t           휴식 누적 %d시간 %d분 " % (ne // 3600, (ne % 3600) // 60, srt, nw // 3600, (nw % 3600) // 60, r_all // 3600, (r_all % 3600) // 60))
+                print("\n\t      현재 %d시간 %d분째 공부 중입니다. \n\n\n\t               일과 : %s \n\n\t           공부 누적 %d시간 %d분 \n\n\t           휴식 누적 %d시간 %d분 " % (ne // 3600, (ne % 3600) // 60, now_sch_f(), nw // 3600, (nw % 3600) // 60, r_all // 3600, (r_all % 3600) // 60))
                 if nw // 3600 >= 8:
                     print("\n공부 시간 목표 달성")
                     if nw // 60 > 480:
@@ -136,8 +197,8 @@ if __name__ == '__main__':
                     if r_all // 60 > 100:
                         print("휴식 목표 시간 %d 초과" % ((r_all // 60) - 100))
                 input("\n            돌아가려면 아무 키나 입력하십시오.")
-        ## 2
-                print("\n\n\n\n\n\n" + "-" * 19 + "%s 부터 공부중" % time.strftime("%p %I:%M", time.localtime(w_s)) + "-" * 19,end = "\n\n\n\n\n")
+        
+                
 
             elif b == "e":  ## 이
                 while True:
@@ -156,11 +217,8 @@ if __name__ == '__main__':
                                 print("휴식 목표 시간 %d 초과" % ((r_all // 60) - 100))
                         state = False
                         input("끝내려면 아무 거나 입력하시오.")
-                        break
+                        return
                     elif a == "n":
-
-        ## 3
-                        print("\n\n\n\n\n\n" + "-" * 19 + "%s 부터 공부중" % time.strftime("%p %I:%M", time.localtime(w_s)) + "-" * 19,end = "\n\n\n\n\n")
                         break
             elif b == "L": ## 엘
                 ne = time.time() - w_s
@@ -168,17 +226,20 @@ if __name__ == '__main__':
                 print("\n"+"\n\n".join(log) + "\n\n\n%d시간 %d분째 공부 중"%(ne // 3600, (ne % 3600) // 60))
                 input("\n\n\n돌아가려면 아무 키나 입력하십시오.")
                 os.system("mode con cols=58 lines=10")
-
-        ## 4
-                print("\n\n\n\n\n\n" + "-" * 19 + "%s 부터 공부중" % time.strftime("%p %I:%M", time.localtime(w_s)) + "-" * 19,end = "\n\n\n\n\n")
+                
+            elif b == "s":
+                show_schedule()
+                
             else:
 
-        ## 5
-                
-                print("\n\n\n\n" + "-" * 19 + "%s 부터 공부중" % time.strftime("%p %I:%M", time.localtime(w_s)) + "-" * 19,end = "\n\n\n")
                 print("\t           잘못 입력하셨습니다.\n")
-######## 공부
-        while state:
+    
+def rest_screen():
+    global log,srt,w_s,w_all,r_s,r_all,evt,th1,th2,schedule,now_sch,now_schf,tts
+    global state
+    
+    while state:
+            print("\n\n\n\n\n\n"+"-" * 19 + "%s 부터 휴식중" % time.strftime("%p %I:%M", time.localtime(r_s)) + "-" * 19,end = "\n\n\n\n\n")
             c = input("\t      공부하려면 q를 입력하십시오 ")
 
             if c == "q":    ## 큐
@@ -189,19 +250,19 @@ if __name__ == '__main__':
                 evt.set()
                 th2.join()
                 evt = Event()
-                th1 = Thread(target=tic,args=[w_s])
+                th1 = Thread(target=tic,args=[w_s,now_sch,schedule,now_schf,tts])
                 th1.daemon = True
                 th1.start()
 
                 log.append("$$ %d 시간 %d분 휴식" % ((w_s - r_s) // 3600, ((w_s - r_s) % 3600) // 60))
                 log.append("---- %s 공부 시작" % (time.strftime("%p %I:%M", time.localtime(w_s))))
-        ## 6
-                print("\n\n\n\n\n\n"+"-" * 19 + "%s 부터 공부중" % time.strftime("%p %I:%M", time.localtime(w_s)) + "-" * 19,end = "\n\n\n\n\n")
+           
+                now_sch = now_sch_f()
                 break
-            elif c == "s":  ## 에스
+            elif c == "w":  ## 에스
                 re = time.time() - r_s
                 rw = r_all + re
-                print("\n\t      현재 %d시간 %d분째 휴식 중입니다.\n\n\n\t           일과 시작: %s \n\n\t           공부 누적 %d시간 %d분 \n\n\t           휴식 누적 %d시간 %d분" % (re // 3600, (re % 3600) // 60, srt, w_all // 3600, (w_all % 3600) // 60, rw // 3600, (rw % 3600) // 60))
+                print("\n\t      현재 %d시간 %d분째 휴식 중입니다.\n\n\n\t                일과 : %s \n\n\t           공부 누적 %d시간 %d분 \n\n\t           휴식 누적 %d시간 %d분" % (re // 3600, (re % 3600) // 60, now_sch_f(), w_all // 3600, (w_all % 3600) // 60, rw // 3600, (rw % 3600) // 60))
                 if w_all // 3600 >= 8:
                     print("\n공부 시간 목표 달성")
                     if w_all // 60 > 480:
@@ -211,8 +272,6 @@ if __name__ == '__main__':
                     if rw // 60 > 100:
                         print("휴식 목표 시간 %d분 초과" % ((rw // 60) - 100))
                 input("\n            돌아가려면 아무 키나 입력하십시오.")
-        ## 7
-                print("\n\n\n\n\n\n" + "-" * 19 + "%s 부터 휴식중" % time.strftime("%p %I:%M", time.localtime(r_s)) + "-" * 19,end = "\n\n\n\n\n")
 
                 
 
@@ -236,10 +295,6 @@ if __name__ == '__main__':
                         input("끝내려면 아무 거나 입력하시오.")
                         break
                     elif a == "n":
-
-        ## 8
-                        print("\n\n\n\n\n\n" + "-" * 19 + "%s 부터 휴식중" % time.strftime("%p %I:%M", time.localtime(r_s)) + "-" * 19,end = "\n\n\n\n\n")
-
                         break
 
             elif c == "L":  ## 엘
@@ -249,14 +304,35 @@ if __name__ == '__main__':
                 print("\n"+"\n\n".join(log) + "\n\n\n%d시간 %d분째 휴식 중"%(re // 3600, (re % 3600) // 60))
                 input("\n\n\n돌아가려면 아무 키나 입력하십시오.")
                 os.system("mode con cols=58 lines=10")
-
-        ## 9
-                print("\n\n\n\n\n\n" + "-" * 19 + "%s 부터 휴식중" % time.strftime("%p %I:%M", time.localtime(r_s)) + "-" * 19,end = "\n\n\n\n\n")
+                
+            elif c == "s":
+                show_schedule()
             else:
-
-        ## 10
-                print("\n\n\n\n" + "-" * 19 + "%s 부터 휴식중" % time.strftime("%p %I:%M", time.localtime(r_s)) + "-" * 19,end = "\n\n\n")
+                
                 print("\t           잘못 입력하셨습니다.\n")
+    
+if __name__ == '__main__':
+    os.system("mode con cols=61 lines=13")
+    state = True
+    log = []
+    srt = 0
+    w_s = 0
+    w_all = 0
+    r_s = 0
+    r_all = 0
+    ti = time.localtime()
+    tts = win32com.client.Dispatch("SAPI.SpVoice")
+    now_schf = now_sch_f
+    weekday = "평일" if ti[6]<5 else "주말"
+    with open("schedule.txt","r", encoding='UTF-8') as js:
+        schedule = json.load(js)
+    now_sch = now_sch_f()
+    start_screen()
+    while state:
+        study_screen()
+        rest_screen()
+        
+        
                 
     
 
