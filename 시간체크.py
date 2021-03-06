@@ -114,37 +114,41 @@ def toc(start,sch,schedule,fuc,tts):
             
         time.sleep(2)
         
-def now_sch_f(): # 스케줄에서 현재 시간에 해당하는 스케쥴 인덱스 return 
+def now_sch_f(t=1): # 스케줄에서 현재 시간에 해당하는 스케쥴 인덱스 return 
     global weekday
     a = schedule["시간"]
     ti = time.localtime()
     weekday = "평일" if ti[6]<5 else "주말"
     
     for i,x in enumerate(a):
-        first = x.split(":")
-        
-        if int(first[0]) == ti[3] :
-            if int(first[1])>ti[4]:
+                first = x.split(":")
                 
-                return schedule[weekday][i-1] if i-1 != -1 else "취침"
-                
-            else:
-                return schedule[weekday][i]
-                
-                
-        elif int(first[0]) > ti[3]:
-            return schedule[weekday][i-1] if i-1 != -1 else "취침"
-            
-    return "취침"
+                if int(first[0]) == ti[3] :
+                    if int(first[1])>ti[4]:
+                        if t == 2:
+                                return schedule["시간"][i-1] if i-1 != -1 else "22:00"
+                        else:
+                                return schedule[weekday][i-1] if i-1 != -1 else "취침"
+                        
+                        
+                elif int(first[0]) > ti[3]:
+                        if t == 2:
+                                return schedule["시간"][i-1] if i-1 != -1 else "22:00"
+                        else:
+                                return schedule[weekday][i-1] if i-1 != -1 else "취침"
+    if t == 2:
+            return "22:00"
+    else:
+            return "취침"
         
 def show_schedule(s = "b"):
    
     len_sch_time = len(schedule["시간"])
     os.system(f"mode con cols=40 lines={49*(len_sch_time>19)+(len_sch_time<=19)*(len_sch_time*2+7)}")
     sch_str = "\n\n"
-    temp_sch= now_sch_f()
+    temp_sch= now_sch_f(t=2)
     for i,x in zip(schedule["시간"],schedule[f"{weekday}"]):
-        sch_str += f"{i} {x}\n\n" if temp_sch != x else f"==> {i} {x}\n\n"
+        sch_str += f"{i} {x}\n\n" if temp_sch != i else f"==> {i} {x}\n\n"
     print(sch_str)
     input("\n돌아가려면 아무 키나 입력하십시오.")
     os.system("mode con cols=58 lines=10") if s != "a" else os.system("mode con cols=61 lines=13")
@@ -402,7 +406,7 @@ def cont():
     st_or_rt = input("공부 시작  s, 휴식 시작  r ")
     while True:
         log.append("공백")
-        if st_or_rt == "S" or "s":
+        if st_or_rt == "S" or st_or_rt == "s":
             
             
             w_s = time.time()
@@ -419,7 +423,7 @@ def cont():
                 state,log,w_s,w_all,r_s,r_all,now_sch = rest_screen(state,log,w_s,w_all,r_s,r_all,now_sch)
             break
                 
-        elif st_or_rt == "R" or "r":
+        elif st_or_rt == "R" or st_or_rt == "r":
             
             r_s = time.time()
             log.append(f"이어서 {ti[3]}시 {ti[4]}분에 휴식 시작")
