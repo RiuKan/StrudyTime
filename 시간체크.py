@@ -118,7 +118,8 @@ def now_sch_f(t=1): # 스케줄에서 현재 시간에 해당하는 스케쥴 �
     global weekday
     a = schedule["시간"]
     ti = time.localtime()
-    weekday = "평일" if ti[6]<5 else "주말"
+    weekday_lst = ("월","화","수","목","금","토","일")
+    weekday = weekday_lst[ti[6]]
     
     for i,x in enumerate(a):
                 first = x.split(":")

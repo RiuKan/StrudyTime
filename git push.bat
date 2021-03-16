@@ -1,5 +1,6 @@
+@echo off
 git add *
 setlocal
-set /p str= 메시지 입력:
+set /p str= message : 
 git commit -m %str%
 git push
